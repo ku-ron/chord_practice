@@ -761,10 +761,16 @@ function schedule(){
     beat++; nextTime+=spb;
   }
 }
+/* currentTime は「音を書き出した時点」の時計で、そこから実際にスピーカーへ届くまでに
+   outputLatency だけ遅れる。内蔵出力なら 20ms 程度だが、Bluetooth は数百ms、AirPlay は
+   1秒を超えることもある。ここを見ないと、画面だけが先に動いて音が遅れて聞こえる。 */
+const outLat=()=>{const l=actx&&actx.outputLatency;
+  return (typeof l==='number'&&isFinite(l)&&l>0&&l<3)?l:0;};
 function uiLoop(){
   if(!state.playing) return;
   let dirty=false;
-  while(uiQ.length && uiQ[0].t <= actx.currentTime+0.02){
+  const lat=outLat();
+  while(uiQ.length && uiQ[0].t+lat <= actx.currentTime){
     const e=uiQ.shift();
     if(e.count){ state.countdown=e.count; state.playChord=null; }
     else{
