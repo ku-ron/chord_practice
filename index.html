@@ -88,14 +88,21 @@ input[type=range]:focus-visible{outline:2px solid var(--brass);outline-offset:4p
 .wheelbox{background:var(--lacquer-2);border:1px solid var(--line);border-radius:14px;padding:10px}
 .wheelhead{display:flex;align-items:center;gap:12px;padding:8px 4px 10px;
   border-bottom:1px solid var(--line);margin-bottom:6px}
-.wheelfoot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+.wheelfoot{display:flex;align-items:center;gap:8px;flex-wrap:wrap;
   padding:12px 4px 4px;border-top:1px solid var(--line);margin-top:8px}
-.wheelfoot .keynow{font-family:var(--f-display);font-size:17px;white-space:nowrap}
+/* 中身が変わる表示にはそれぞれ固定幅を与える。ここが伸び縮みすると、余りを受け持つ
+   スライダーの長さまで動いてしまい、行全体が落ち着かない。幅は最長の文字列
+   （B♭m → E♭m／12 / 12／208 BPM）に合わせてある。 */
+.wheelfoot .keynow{font-family:var(--f-display);font-size:17px;white-space:nowrap;
+  flex:none;width:126px;text-align:center}
 .wheelfoot .keynow b{color:var(--brass);font-weight:600}
-.wheelfoot input[type=range]{flex:1;min-width:150px;margin:0}
-.wheelfoot > button{min-width:50px;font-size:16px;line-height:1.2}
-.wheelfoot .counter{margin-left:0}
-.wheelfoot .bpm{min-width:66px;text-align:right}
+.wheelfoot input[type=range]{flex:1 1 110px;min-width:80px;margin:0}
+.wheelfoot > button{min-width:44px;font-size:16px;line-height:1.2}
+.wheelfoot > button.step{min-width:30px;padding:6px 0;font-size:15px;flex:none}
+.wheelfoot .counter{margin-left:0;flex:none;width:52px;text-align:center}
+.wheelfoot .bpm{width:62px;text-align:center}
+.wheelfoot .seg{flex:none}
+.wheelfoot .seg button{padding:6px 7px;font-size:12.5px}
 .wheelfoot .play{margin-left:6px}
 .advtoggle{margin-left:auto}
 .play{width:46px;height:46px;flex:none;border-radius:50%;font-size:15px;line-height:1;
@@ -118,6 +125,9 @@ svg.wheel .hit{cursor:pointer;fill:transparent}
   button{padding:9px 12px;font-size:14px}
   .key-btn,.root-btn{min-width:52px}
   .wheelfoot > button{min-width:58px;padding:11px 14px;font-size:16px}
+  /* この2つは .step / .seg 側の指定のほうが強いので、ここで明示的に上書きする */
+  .wheelfoot > button.step{min-width:46px;padding:11px 0}
+  .wheelfoot .seg button{padding:10px 11px;font-size:13.5px}
   .play{width:56px;height:56px;font-size:18px;padding:0}
 }
 /* いま弾く区画は光り、次の区画は枠が点滅する。どちらも区画の内側で完結させ、
@@ -246,7 +256,12 @@ svg.wheel .nextcell{animation:nextblink .45s ease-out forwards}
           <span class="keynow"><b id="nowKey">C</b> → <span id="nextKey">F</span></span>
           <span class="counter" id="counter">1 / 12</span>
           <input type="range" id="bpm" min="40" max="208" step="1" value="96" aria-label="テンポ">
+          <button id="bpmDown" class="step" aria-label="テンポを1下げる">−</button>
           <span class="counter bpm" id="bpmVal2">96 BPM</span>
+          <button id="bpmUp" class="step" aria-label="テンポを1上げる">+</button>
+          <span class="seg" id="bpcSeg2" aria-label="1コードあたりの拍数">
+            <button data-b="1">1拍</button><button data-b="2">2拍</button><button data-b="4">4拍</button>
+          </span>
           <button id="playBtn2" class="play" aria-label="再生／停止">▶</button>
         </div>
       </div>
@@ -611,9 +626,11 @@ function drawPanel(){
   pb2.textContent=state.playing?(cd?String(cd):'■'):'▶';
   pb2.classList.toggle('counting',!!cd);
   document.getElementById('bpmVal2').textContent=`${state.bpm} BPM`;
+  document.getElementById('bpm').value=state.bpm;   /* ＋− で変えたときにつまみも動かす */
   document.getElementById('layout').classList.toggle('adv',state.advanced);
   document.getElementById('advBtn').textContent=state.advanced?'編集を閉じる':'編集を開く';
-  document.querySelectorAll('#bpcSeg button').forEach(b=>{
+  /* 拍数の切り替えは編集パネルとホイール下の2箇所にある。どちらも同じ状態を指す。 */
+  document.querySelectorAll('#bpcSeg button,#bpcSeg2 button').forEach(b=>{
     b.classList.toggle('on',+b.dataset.b===state.beatsPerChord);
     b.onclick=()=>{state.beatsPerChord=+b.dataset.b;render();};});
   document.querySelectorAll('#ciSeg button').forEach(b=>{
@@ -805,8 +822,11 @@ const toggledPlay=()=>state.playing?stop():play();
 const step=d=>{state.step=mod(state.step+d,state.seq.length);render();};
 document.getElementById('playBtn2').onclick=toggledPlay;
 document.getElementById('advBtn').onclick=()=>{state.advanced=!state.advanced;render();};
-document.getElementById('bpm').oninput=e=>{state.bpm=+e.target.value;drawPanel();};
+const setBpm=v=>{state.bpm=Math.min(208,Math.max(40,v));drawPanel();};
+document.getElementById('bpm').oninput=e=>setBpm(+e.target.value);
 document.getElementById('bpm').onkeydown=e=>{if(e.code==='Space')e.stopPropagation();};
+document.getElementById('bpmDown').onclick=()=>setBpm(state.bpm-1);
+document.getElementById('bpmUp').onclick=()=>setBpm(state.bpm+1);
 document.addEventListener('keydown',e=>{
   if(e.code==='Space'&&e.target===document.body){e.preventDefault();toggledPlay();}});
 document.getElementById('nextBtn').onclick=()=>step(1);
