@@ -120,9 +120,15 @@ svg.wheel .hit{cursor:pointer;fill:transparent}
   .wheelfoot > button{min-width:58px;padding:11px 14px;font-size:16px}
   .play{width:56px;height:56px;font-size:18px;padding:0}
 }
-svg.wheel .live{animation:livepulse .22s ease-out}
-@keyframes livepulse{from{opacity:.1}to{opacity:1}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}svg.wheel .live{animation:none}}
+/* いま弾く区画は光り、次の区画は枠が点滅する。どちらも区画の内側で完結させ、
+   隣を覆わない。描き直しは拍ごとなので、アニメーションもその都度やり直される。 */
+svg.wheel .nowcell{animation:nowglow .22s ease-out}
+@keyframes nowglow{from{opacity:.3}to{opacity:1}}
+svg.wheel .nextcell{animation:nextblink .45s ease-out forwards}
+@keyframes nextblink{from{opacity:1}to{opacity:.3}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}
+  svg.wheel .nowcell,svg.wheel .nextcell{animation:none}
+  svg.wheel .nextcell{opacity:.65}}
 </style>
 </head>
 <body>
@@ -214,6 +220,12 @@ svg.wheel .live{animation:livepulse .22s ease-out}
             <button data-theme="dark">ダーク</button><button data-theme="light">ライト</button>
           </span>
         </div>
+        <div class="row" style="margin-top:10px;align-items:center;gap:10px">
+          <span class="hint" style="margin:0">コード表記</span>
+          <span class="seg" id="notSeg">
+            <button data-n="std">標準</button><button data-n="jazz">ジャズ</button>
+          </span>
+        </div>
         <div class="row" style="margin-top:10px">
           <button id="degBtn">度数を表示</button>
           <button id="simpBtn">ダブル♯♭を簡略化</button>
@@ -262,6 +274,12 @@ function degreeLabel(rel){const a=Math.floor((rel+1)/7);
 
 /* ===== データ ===== */
 const QUALITIES=['','m','7','maj7','m7','m7♭5','dim7','sus4','7sus4','6','m6','add9','9','m9','mM7','aug','13'];
+/* 表示だけを差し替える対応表。state.chords が持つ q は常に上の標準表記のまま。 */
+/* Δ は U+0394（ギリシャ大文字）。三角記号 U+25B3 は和文フォントに落ちて 1em 送りになり、
+   幅を詰めるという目的に反するので使わない。 */
+const JAZZ_Q={'m':'-','maj7':'Δ7','m7':'-7','m7♭5':'ø7','dim7':'°7','sus4':'sus','7sus4':'7sus',
+  'm6':'-6','m9':'-9','mM7':'-Δ7','aug':'+'};
+const qLabel=q=>state.notation==='jazz'?(JAZZ_Q[q]??q):q;
 const ROOTS=['C','C♯','D♭','D','D♯','E♭','E','F','F♯','G♭','G','G♯','A♭','A','A♯','B♭','B'];
 const DEGREES=[
   {rel:0,name:'I'},{rel:-5,name:'♭II'},{rel:2,name:'II'},{rel:-3,name:'♭III'},{rel:4,name:'III'},
@@ -372,6 +390,7 @@ const TH=()=>THEMES[state.theme];
 const state={
   startFifth:0, step:0, patId:'P4u', coverAll:true, shiftV:1,
   mode:'major', triSharp:true, showDeg:false, simplifyAcc:true, showPath:true, advanced:false,
+  notation:'std',
   theme:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark',
   chords:[{rel:-1,q:''},{rel:1,q:''},{rel:0,q:''}], sel:2, inputMode:'name',
   bpm:96, beatsPerChord:4, countIn:4, playing:false, playChord:null, countdown:0, presetTab:0,
@@ -429,11 +448,12 @@ function fifthOfPc(pc){ return keyOrder().find(kf=>pcOf(kf)===pc); }
 /* ===== 度数まわり ===== */
 const refFifth=k=>k+(state.mode==='minor'?3:0);
 const chordFifth=(k,c)=>refFifth(k)+c.rel;
-function chordSymbol(k,c){
+function chordRoot(k,c){
   let n=chordFifth(k,c);
   if(state.simplifyAcc&&Math.abs(Math.floor((n+1)/7))>=2) n=simplify(n);
-  return noteName(n)+c.q;
+  return noteName(n);
 }
+const chordSymbol=(k,c)=>chordRoot(k,c)+qLabel(c.q);
 
 /* ===== 幾何 ===== */
 const R_PATH=48, R_IN=54, R_MIN=84, R_MAJ=116, R_C0=121, RT=38, PAD=36;
@@ -455,6 +475,19 @@ function arrowAt(x0,y0,x1,y1,t,s){
   return `M${q(s,0)} L${q(-s*.8,s*.62)} L${q(-s*.8,-s*.62)} Z`;
 }
 
+/* ===== 区画内のコード名：ルートとクオリティを2段に積む =====
+   3時・9時方向では区画の水平方向の余地がリング厚（38px）しかなく、1行では
+   "C♯m" ですら収まらない。2段にすると最長のクオリティでも収まる。
+   行の高さは font-size の 0.70 倍（およそ cap height）として上下中央に揃える。 */
+const CAP=0.70;
+function stack(x,y,root,q,fr,fq,fill,weight){
+  const hr=fr*CAP, hq=q?fq*CAP:0, gap=q?fq*0.24:0, top=y-(hr+gap+hq)/2;
+  const w=weight?` font-weight="${weight}"`:'';
+  let o=`<text x="${f2(x)}" y="${f2(top+hr)}" text-anchor="middle" font-size="${fr}"${w} fill="${fill}">${root}</text>`;
+  if(q) o+=`<text x="${f2(x)}" y="${f2(top+hr+gap+hq)}" text-anchor="middle" font-size="${fq}"${w} fill="${fill}">${q}</text>`;
+  return o;
+}
+
 /* ===== ホイール描画 ===== */
 function drawWheel(){
   const n=state.chords.length, outer=R_C0+n*RT;
@@ -464,7 +497,18 @@ function drawWheel(){
   const keys=keyOrder(), cur=curFifth(), nxt=fifthOfPc(state.seq[nextIdx()]), T=TH();
   const angOf=kf=>keys.indexOf(kf)*30;
   let s=`<svg class="wheel" viewBox="0 0 ${size} ${size}" role="img" aria-label="五度圏とコード進行">`;
-  let ov='', liveMk='';
+  let ov='';
+
+  /* いま弾くコードと次のコード。進行の最後まで来たら次は「次の調の1番目」に回る。
+     k 個先を (調, 進行内の位置) で返す。d が調の進み数。 */
+  const li=state.playing?state.playChord:null;
+  const at=k=>{const t=li+k, d=Math.floor(t/n);
+    return {kf:fifthOfPc(state.seq[mod(state.step+d,state.seq.length)]), ci:mod(t,n)};};
+  /* カウントイン中は playChord がまだ無い。これから弾く最初のコードを「次」として
+     点滅させると、入りの構えが取れる。 */
+  const now=li==null?null:at(0);
+  const nxtc=li==null?(state.playing?{kf:cur,ci:0}:null):at(1);
+  const isCell=(t,kf,ci)=>!!t&&t.kf===kf&&t.ci===ci;
 
   keys.forEach((kf,i)=>{
     const a0=i*30-15,a1=i*30+15,am=i*30;
@@ -473,19 +517,27 @@ function drawWheel(){
     for(let r=0;r<n;r++){
       const ci=n-1-r, alpha=n>1?T.aMax-(T.aMax-T.aMin)*(r/(n-1)):T.aMax, r0=R_C0+r*RT, r1=r0+RT;
       s+=`<path d="${sector(c,c,r0,r1,a0,a1)}" fill="rgba(${T.feltRGB},${alpha.toFixed(3)})" stroke="${T.sep}"/>`;
-      const live=isCur&&state.playing&&state.playChord===ci;
-      const [tx,ty]=pt(c,c,(r0+r1)/2,am), dy=state.showDeg?4:6;
-      const sym=chordSymbol(kf,state.chords[ci]);
-      if(live){
-        /* 隣より一回り大きい区画を最前面に。文字色はテーマ標準のままにして、
-           長い名前がはみ出しても読めるようにする。 */
-        liveMk=`<g class="live" pointer-events="none">`+
-          `<path d="${sector(c,c,r0-5,r1+5,a0-3.5,a1+3.5)}" fill="${T.live}" stroke="${T.brass}" stroke-width="${(3.2*K).toFixed(2)}" stroke-linejoin="round"/>`+
-          `<text x="${f2(tx)}" y="${f2(ty+dy+1.5)}" text-anchor="middle" font-size="19.5" font-weight="600" fill="${T.text}">${sym}</text></g>`;
-      }
-      s+=`<text x="${f2(tx)}" y="${f2(ty+dy)}" text-anchor="middle" font-size="15.5" fill="${T.text}">${sym}</text>`;
+      const [tx,ty]=pt(c,c,(r0+r1)/2,am), ch=state.chords[ci];
+      /* いま弾く区画は、同じ扇形のまま地の色を差し替えて光らせる。区画をはみ出させると
+         隣のコードを隠してしまうので、大きさは変えない。 */
+      if(isCell(now,kf,ci))
+        s+=`<path class="nowcell" d="${sector(c,c,r0,r1,a0,a1)}" fill="${T.live}" `+
+           `stroke="${T.brass}" stroke-width="${(1.4*K).toFixed(2)}"/>`;
+      /* 次の区画は枠だけ。現在の調の実線の輪郭や矢印と紛れないよう、「破線＝次」という
+         この図の約束に合わせる。文字より後に描きたいので ov に回す。 */
+      if(isCell(nxtc,kf,ci))
+        ov+=`<path class="nextcell" d="${sector(c,c,r0,r1,a0,a1)}" fill="none" `+
+            `stroke="${T.brass}" stroke-width="${(2.4*K).toFixed(2)}" stroke-linejoin="round" `+
+            `stroke-dasharray="${(5*K).toFixed(1)} ${(3.5*K).toFixed(1)}"/>`;
+      /* 度数を出すと3段になる。リング厚38pxに対し内容は約30pxなので、上下の余白が
+         均等になる位置に置く。詰めすぎると隣のリングの文字とくっついて見える。 */
+      const root=chordRoot(kf,ch);
+      /* 「ダブル♯♭を簡略化」を切ると E♭♭ のような綴りが出る。これだけは2段にしても
+         41.1px あり 38px に収まらないので、その語だけ字を詰める。 */
+      s+=stack(tx,ty+(state.showDeg?4.7:0),root,qLabel(ch.q),
+               /♭♭|♯♯/.test(root)?14.2:15.5,10.5,T.text);
       if(state.showDeg)
-        s+=`<text class="mono" x="${f2(tx)}" y="${f2(ty-9)}" text-anchor="middle" font-size="9" fill="${T.deg}">${degreeLabel(state.chords[ci].rel)}</text>`;
+        s+=`<text class="mono" x="${f2(tx)}" y="${f2(ty-9)}" text-anchor="middle" font-size="9" fill="${T.deg}">${degreeLabel(ch.rel)}</text>`;
     }
 
     const hi=isCur?T.hiOut:isNext?T.hiNext:T.ring;
@@ -533,7 +585,7 @@ function drawWheel(){
       s+=`<circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="${on?4.2:2.4}" fill="${on?T.brass:nx?T.center:T.node}" ${nx&&!on?`stroke="${T.brass}" stroke-width="1.4"`:''}/>`;
     });
   }
-  s+=liveMk+`</svg>`;
+  s+=`</svg>`;
   document.getElementById('wheel').innerHTML=s;
 
   document.querySelectorAll('svg.wheel .hit').forEach(el=>{
@@ -596,7 +648,7 @@ function drawPanel(){
   const chips=document.getElementById('chips');
   chips.innerHTML=state.chords.map((ch,i)=>
     `<div class="chip ${i===state.sel?'sel':''}" data-i="${i}">
-       <span class="deg">${degreeLabel(ch.rel)}${ch.q}</span>
+       <span class="deg">${degreeLabel(ch.rel)}${qLabel(ch.q)}</span>
        <span class="sym">${chordSymbol(cur,ch)}</span>
      </div>`+(i<state.chords.length-1?'<span class="arrowchip">→</span>':'')).join('');
   chips.querySelectorAll('.chip').forEach(el=>el.onclick=()=>{state.sel=+el.dataset.i;render();});
@@ -621,11 +673,11 @@ function drawPanel(){
 
   document.getElementById('progLine').innerHTML=
     `<span class="lab">degrees</span><span class="val">`+
-    state.chords.map(ch=>degreeLabel(ch.rel)+ch.q).join('<span class="sep">–</span>')+
+    state.chords.map(ch=>degreeLabel(ch.rel)+qLabel(ch.q)).join('<span class="sep">–</span>')+
     `</span><span class="note">${state.mode==='minor'?'平行短調の I を基準':'長調の I を基準'}</span>`;
 
   const qualRow=document.getElementById('qualRow');
-  qualRow.innerHTML=QUALITIES.map(q=>`<button class="qual-btn ${q===c0.q?'on':''}" data-q="${q}">${q===''?'major':q}</button>`).join('');
+  qualRow.innerHTML=QUALITIES.map(q=>`<button class="qual-btn ${q===c0.q?'on':''}" data-q="${q}">${q===''?'major':qLabel(q)}</button>`).join('');
   qualRow.querySelectorAll('button').forEach(b=>b.onclick=()=>{state.chords[state.sel].q=b.dataset.q;render();});
 
   const tabs=document.getElementById('presetTabs');
@@ -638,7 +690,7 @@ function drawPanel(){
     p.chords.every((c,i)=>c.rel===state.chords[i].rel&&c.q===state.chords[i].q);
   const pr=document.getElementById('presetRow');
   pr.innerHTML=grp.items.map((p,i)=>
-    `<button class="pat-btn ${same(p)?'on':''}" data-p="${i}" title="${p.chords.map(c=>degreeLabel(c.rel)+c.q).join(' - ')}">${p.name}</button>`).join('');
+    `<button class="pat-btn ${same(p)?'on':''}" data-p="${i}" title="${p.chords.map(c=>degreeLabel(c.rel)+qLabel(c.q)).join(' - ')}">${p.name}</button>`).join('');
   pr.querySelectorAll('button').forEach(b=>b.onclick=()=>{
     const p=grp.items[+b.dataset.p];state.mode=p.mode;state.chords=p.chords.map(x=>({...x}));
     state.sel=state.chords.length-1;render();});
@@ -647,6 +699,9 @@ function drawPanel(){
   document.querySelectorAll('#themeSeg button').forEach(b=>{
     b.classList.toggle('on',b.dataset.theme===state.theme);
     b.onclick=()=>{state.theme=b.dataset.theme;render();};});
+  document.querySelectorAll('#notSeg button').forEach(b=>{
+    b.classList.toggle('on',b.dataset.n===state.notation);
+    b.onclick=()=>{state.notation=b.dataset.n;render();};});
   document.getElementById('degBtn').classList.toggle('on',state.showDeg);
   document.getElementById('simpBtn').classList.toggle('on',state.simplifyAcc);
   document.getElementById('pathBtn').classList.toggle('on',state.showPath);
@@ -669,6 +724,10 @@ function click(t,level){
 }
 function schedule(){
   const spb=60/state.bpm, per=state.beatsPerChord, n=state.chords.length, total=per*n;
+  /* 予約が現在時刻より後ろに落ちたら、そこから鳴らし直さずに現在へ引き直す。
+     タブを離れてタイマーが間引かれたときや、中断から復帰して時計が飛んだときに起きる。
+     過去に置いた予約は音量の包絡が済んでしまっているので、そのまま出すと無音になる。 */
+  if(nextTime < actx.currentTime) nextTime=actx.currentTime+0.06;
   while(nextTime < actx.currentTime + LOOKAHEAD){
     if(beat<0){
       click(nextTime, beat===-state.countIn?2:0);
@@ -696,16 +755,47 @@ function uiLoop(){
   if(dirty) render();
   requestAnimationFrame(uiLoop);
 }
+/* Safari(WebKit)向けの注意点が3つある。
+   1. state は 'running'/'suspended' のほかに WebKit 独自の 'interrupted' を取る。他アプリに
+      音声を取られたときなどに入る。'suspended' だけを見ていると復帰できず無音になる。
+   2. resume() は非同期。止まっている間 currentTime は進まないので、resume が効く前に
+      予約すると、時計が動き出した時点で予約時刻が過去になり、包絡が済んで無音になる。
+   3. 最初の一度は音を出して解錠する必要がある実装がある。 */
+function ensureCtx(){
+  if(actx) return actx;
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  actx.addEventListener('statechange',()=>{
+    if(state.playing&&actx.state!=='running') Promise.resolve(actx.resume()).catch(()=>{});
+  });
+  return actx;
+}
+let playGen=0;
 function play(){
-  if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
-  if(actx.state==='suspended') actx.resume();
+  ensureCtx();
+  const gen=++playGen;
   state.playing=true; beat=-state.countIn; uiQ=[];
   state.countdown=state.countIn; state.playChord=state.countIn?null:0;
-  nextTime=actx.currentTime+0.08;
-  schedId=setInterval(schedule,TICK);
-  schedule(); requestAnimationFrame(uiLoop); render();
+  render();
+  let started=false;
+  const begin=()=>{
+    if(started||gen!==playGen||!state.playing) return;
+    started=true;
+    clearInterval(schedId);
+    nextTime=actx.currentTime+0.08;
+    schedId=setInterval(schedule,TICK);
+    schedule(); requestAnimationFrame(uiLoop);
+  };
+  if(actx.state==='running'){ begin(); return; }
+  try{
+    const b=actx.createBufferSource();
+    b.buffer=actx.createBuffer(1,1,actx.sampleRate);
+    b.connect(actx.destination); b.start();
+  }catch(e){}
+  try{ Promise.resolve(actx.resume()).then(begin,begin); }catch(e){ begin(); }
+  setTimeout(begin,300);   /* resume が返らない実装への保険 */
 }
 function stop(){
+  playGen++;
   state.playing=false; clearInterval(schedId); schedId=null; uiQ=[];
   state.playChord=null; state.countdown=0; render();
 }
