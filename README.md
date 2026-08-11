@@ -4,6 +4,11 @@
 
 **→ https://ku-ron.github.io/chord_practice/**
 
+![](./docs/wheel_ss1.png)
+
+![](./docs/wheel_ss2.png)
+
+
 ---
 
 ## これは何か
