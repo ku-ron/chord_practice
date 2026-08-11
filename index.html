@@ -49,11 +49,7 @@ h1{font-family:var(--f-display);font-weight:600;font-size:26px;margin:0}
   .layout.adv{grid-template-columns:1fr}
   .layout.adv .panel{order:2}
 }
-@media (pointer:coarse){
-  button{padding:9px 12px;font-size:14px}
-  .key-btn,.root-btn{min-width:52px}
-}
-.panel{display:flex;flex-direction:column;gap:18px}
+.panel{flex-direction:column;gap:18px}
 .block{background:var(--lacquer-2);border:1px solid var(--line);border-radius:10px;padding:14px 14px 16px}
 .block > h2{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;
   color:var(--ivory-dim);margin:0 0 10px;font-weight:500}
@@ -98,10 +94,9 @@ input[type=range]:focus-visible{outline:2px solid var(--brass);outline-offset:4p
 .wheelfoot .keynow b{color:var(--brass);font-weight:600}
 .wheelfoot input[type=range]{flex:1;min-width:150px;margin:0}
 .wheelfoot > button{min-width:50px;font-size:16px;line-height:1.2}
-@media (pointer:coarse){
-  .play{width:56px;height:56px;font-size:18px}
-  .wheelfoot > button{min-width:58px;padding:11px 14px}
-}
+.wheelfoot .counter{margin-left:0}
+.wheelfoot .bpm{min-width:66px;text-align:right}
+.wheelfoot .play{margin-left:6px}
 .advtoggle{margin-left:auto}
 .play{width:46px;height:46px;flex:none;border-radius:50%;font-size:15px;line-height:1;
   display:grid;place-items:center;background:var(--sel-bg);border-color:var(--brass);color:var(--brass)}
@@ -115,10 +110,19 @@ svg.wheel{display:block;width:100%;height:auto}
 svg.wheel text{font-family:var(--f-display)}
 svg.wheel .mono{font-family:var(--f-mono)}
 svg.wheel .hit{cursor:pointer;fill:transparent}
-.legend{display:flex;gap:18px;flex-wrap:wrap;color:var(--ivory-dim);font-size:12.5px;margin:12px 2px 0}
+.legend{gap:18px;flex-wrap:wrap;color:var(--ivory-dim);font-size:12.5px;margin:12px 2px 0}
 .legend b{color:var(--ivory);font-weight:500}
 .swatch{display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;margin-right:6px}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+/* タッチ端末：指で押せる大きさに。基本規則より後に置いて確実に上書きする */
+@media (pointer:coarse){
+  button{padding:9px 12px;font-size:14px}
+  .key-btn,.root-btn{min-width:52px}
+  .wheelfoot > button{min-width:58px;padding:11px 14px;font-size:16px}
+  .play{width:56px;height:56px;font-size:18px;padding:0}
+}
+svg.wheel .live{animation:livepulse .22s ease-out}
+@keyframes livepulse{from{opacity:.1}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}svg.wheel .live{animation:none}}
 </style>
 </head>
 <body>
@@ -221,9 +225,7 @@ svg.wheel .hit{cursor:pointer;fill:transparent}
     <div class="stage">
       <div class="wheelbox">
         <div class="wheelhead">
-          <button id="playBtn2" class="play" aria-label="再生／停止">▶</button>
           <div class="prog" id="progLine"></div>
-          <span class="counter" id="bpmVal2">96 BPM</span>
         </div>
         <div id="wheel"></div>
         <div class="wheelfoot">
@@ -232,6 +234,8 @@ svg.wheel .hit{cursor:pointer;fill:transparent}
           <span class="keynow"><b id="nowKey">C</b> → <span id="nextKey">F</span></span>
           <span class="counter" id="counter">1 / 12</span>
           <input type="range" id="bpm" min="40" max="208" step="1" value="96" aria-label="テンポ">
+          <span class="counter bpm" id="bpmVal2">96 BPM</span>
+          <button id="playBtn2" class="play" aria-label="再生／停止">▶</button>
         </div>
       </div>
       <div class="legend">
@@ -354,12 +358,14 @@ const THEMES={
     sep:'rgba(20,17,15,.55)',ring:'rgba(239,231,216,.10)',ringIn:'rgba(239,231,216,.045)',
     hiOut:'rgba(201,162,39,.30)',hiNext:'rgba(201,162,39,.11)',hiIn:'rgba(201,162,39,.19)',
     div:'rgba(239,231,216,.16)',center:'#1A1614',centerEdge:'rgba(239,231,216,.10)',
-    path:'rgba(239,231,216,.30)',node:'rgba(239,231,216,.45)',deg:'rgba(239,231,216,.55)'},
+    path:'rgba(239,231,216,.30)',node:'rgba(239,231,216,.45)',deg:'rgba(239,231,216,.55)',
+    live:'#7E4B22'},
   light:{text:'#2A2320',dim:'#7A7062',brass:'#6E5417',feltRGB:'164,36,59',aMax:.42,aMin:.09,
     sep:'rgba(42,35,32,.16)',ring:'rgba(42,35,32,.07)',ringIn:'rgba(42,35,32,.035)',
     hiOut:'rgba(138,109,31,.36)',hiNext:'rgba(138,109,31,.14)',hiIn:'rgba(138,109,31,.24)',
     div:'rgba(42,35,32,.18)',center:'#F6F1E6',centerEdge:'rgba(42,35,32,.14)',
-    path:'rgba(42,35,32,.30)',node:'rgba(42,35,32,.45)',deg:'rgba(42,35,32,.52)'}
+    path:'rgba(42,35,32,.30)',node:'rgba(42,35,32,.45)',deg:'rgba(42,35,32,.52)',
+    live:'#F2C94C'}
 };
 const TH=()=>THEMES[state.theme];
 
@@ -458,7 +464,7 @@ function drawWheel(){
   const keys=keyOrder(), cur=curFifth(), nxt=fifthOfPc(state.seq[nextIdx()]), T=TH();
   const angOf=kf=>keys.indexOf(kf)*30;
   let s=`<svg class="wheel" viewBox="0 0 ${size} ${size}" role="img" aria-label="五度圏とコード進行">`;
-  let ov='';
+  let ov='', liveMk='';
 
   keys.forEach((kf,i)=>{
     const a0=i*30-15,a1=i*30+15,am=i*30;
@@ -468,9 +474,16 @@ function drawWheel(){
       const ci=n-1-r, alpha=n>1?T.aMax-(T.aMax-T.aMin)*(r/(n-1)):T.aMax, r0=R_C0+r*RT, r1=r0+RT;
       s+=`<path d="${sector(c,c,r0,r1,a0,a1)}" fill="rgba(${T.feltRGB},${alpha.toFixed(3)})" stroke="${T.sep}"/>`;
       const live=isCur&&state.playing&&state.playChord===ci;
-      if(live) ov+=`<path d="${sector(c,c,r0,r1,a0,a1)}" fill="none" stroke="${T.brass}" stroke-width="${(2.6*K).toFixed(2)}" stroke-linejoin="round"/>`;
       const [tx,ty]=pt(c,c,(r0+r1)/2,am), dy=state.showDeg?4:6;
-      s+=`<text x="${f2(tx)}" y="${f2(ty+dy)}" text-anchor="middle" font-size="${live?17:15.5}" font-weight="${live?600:400}" fill="${live?T.brass:T.text}">${chordSymbol(kf,state.chords[ci])}</text>`;
+      const sym=chordSymbol(kf,state.chords[ci]);
+      if(live){
+        /* 隣より一回り大きい区画を最前面に。文字色はテーマ標準のままにして、
+           長い名前がはみ出しても読めるようにする。 */
+        liveMk=`<g class="live" pointer-events="none">`+
+          `<path d="${sector(c,c,r0-5,r1+5,a0-3.5,a1+3.5)}" fill="${T.live}" stroke="${T.brass}" stroke-width="${(3.2*K).toFixed(2)}" stroke-linejoin="round"/>`+
+          `<text x="${f2(tx)}" y="${f2(ty+dy+1.5)}" text-anchor="middle" font-size="19.5" font-weight="600" fill="${T.text}">${sym}</text></g>`;
+      }
+      s+=`<text x="${f2(tx)}" y="${f2(ty+dy)}" text-anchor="middle" font-size="15.5" fill="${T.text}">${sym}</text>`;
       if(state.showDeg)
         s+=`<text class="mono" x="${f2(tx)}" y="${f2(ty-9)}" text-anchor="middle" font-size="9" fill="${T.deg}">${degreeLabel(state.chords[ci].rel)}</text>`;
     }
@@ -520,7 +533,7 @@ function drawWheel(){
       s+=`<circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="${on?4.2:2.4}" fill="${on?T.brass:nx?T.center:T.node}" ${nx&&!on?`stroke="${T.brass}" stroke-width="1.4"`:''}/>`;
     });
   }
-  s+=`</svg>`;
+  s+=liveMk+`</svg>`;
   document.getElementById('wheel').innerHTML=s;
 
   document.querySelectorAll('svg.wheel .hit').forEach(el=>{
