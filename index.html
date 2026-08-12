@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>コード進行 12キー練習ホイール</title>
+<!-- ホーム画面に追加したアイコンから開いたとき、Safariのバーを出さず全画面にする。
+     タイトルは長すぎてアイコンの下で切れるので、短い名前を別に与える。 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="練習ホイール">
+<!-- 周辺のUIの色。テーマの切り替えに合わせて JS からも書き換える。 -->
+<meta name="theme-color" id="themeColor" content="#14110F">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@400;600&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -178,6 +185,8 @@ svg.wheel .nextcell{animation:nextblink .45s ease-out forwards}
         <div class="row" id="rootRow" style="margin-top:10px"></div>
         <div class="row" id="degRow" style="margin-top:10px"></div>
         <div class="row" id="qualRow" style="margin-top:10px"></div>
+        <p class="hint">ベース（分数コード）。ルートと同じ音は選べません。</p>
+        <div class="row" id="bassRow" style="margin-top:6px"></div>
       </div>
 
       <div class="block">
@@ -310,7 +319,11 @@ const PRESETS=[
   {name:'I–VIm–IV–V',   mode:'major', chords:[{rel:0,q:''},{rel:3,q:'m'},{rel:-1,q:''},{rel:1,q:''}]},
   {name:'I–V–VIm–IV',   mode:'major', chords:[{rel:0,q:''},{rel:1,q:''},{rel:3,q:'m'},{rel:-1,q:''}]},
   {name:'I–IIIm–IV–V',  mode:'major', chords:[{rel:0,q:''},{rel:4,q:'m'},{rel:-1,q:''},{rel:1,q:''}]},
-  {name:'IV–V–IIIm–VIm',mode:'major', chords:[{rel:-1,q:''},{rel:1,q:''},{rel:4,q:'m'},{rel:3,q:'m'}]}
+  {name:'IV–V–IIIm–VIm',mode:'major', chords:[{rel:-1,q:''},{rel:1,q:''},{rel:4,q:'m'},{rel:3,q:'m'}]},
+  /* ここから分数コード。ベースが動くだけで響きが変わることを、三和音のまま体験する。 */
+  {name:'上行ベース I–I/III–IV–V', mode:'major',
+   chords:[{rel:0,q:''},{rel:0,q:'',bass:4},{rel:-1,q:''},{rel:1,q:''}]},
+  {name:'IV–IV/V–I',  mode:'major', chords:[{rel:-1,q:''},{rel:-1,q:'',bass:1},{rel:0,q:''}]}
 ]},
 {tab:'2 四和音', note:'レベル2：ダイアトニックの四和音とツーファイブ。', items:[
   {name:'IIm7–V7',                mode:'major', chords:[{rel:2,q:'m7'},{rel:1,q:'7'}]},
@@ -321,7 +334,10 @@ const PRESETS=[
   {name:'逆循環 IIIm7–VIm7–IIm7–V7',mode:'major',chords:[{rel:4,q:'m7'},{rel:3,q:'m7'},{rel:2,q:'m7'},{rel:1,q:'7'}]},
   {name:'VIm7–IIm7–V7–Imaj7',     mode:'major', chords:[{rel:3,q:'m7'},{rel:2,q:'m7'},{rel:1,q:'7'},{rel:0,q:'maj7'}]},
   {name:'IIm7–V7sus4–V7–Imaj7',   mode:'major', chords:[{rel:2,q:'m7'},{rel:1,q:'7sus4'},{rel:1,q:'7'},{rel:0,q:'maj7'}]},
-  {name:'IIm7–V7–Imaj7–VIm7',     mode:'major', chords:[{rel:2,q:'m7'},{rel:1,q:'7'},{rel:0,q:'maj7'},{rel:3,q:'m7'}]}
+  {name:'IIm7–V7–Imaj7–VIm7',     mode:'major', chords:[{rel:2,q:'m7'},{rel:1,q:'7'},{rel:0,q:'maj7'},{rel:3,q:'m7'}]},
+  /* IIm7/V は V7sus4 の定番の押さえ方。ツーファイブを手の形を変えずに通せる。 */
+  {name:'IIm7–IIm7/V–Imaj7', mode:'major',
+   chords:[{rel:2,q:'m7'},{rel:2,q:'m7',bass:1},{rel:0,q:'maj7'}]}
 ]},
 {tab:'3 定番', note:'レベル3：日本のポップスで名前のついている型。', items:[
   {name:'IV–V7–I',    mode:'major', chords:[{rel:-1,q:''},{rel:1,q:'7'},{rel:0,q:''}]},
@@ -332,7 +348,13 @@ const PRESETS=[
   {name:'ブルース I7–IV7–I7–V7–IV7–I7', mode:'major', chords:[{rel:0,q:'7'},{rel:-1,q:'7'},{rel:0,q:'7'},{rel:1,q:'7'},{rel:-1,q:'7'},{rel:0,q:'7'}]},
   {name:'IV–V–VIm',                  mode:'major', chords:[{rel:-1,q:''},{rel:1,q:''},{rel:3,q:'m'}]},
   {name:'IIm7–V7–IIIm7–VIm7',        mode:'major', chords:[{rel:2,q:'m7'},{rel:1,q:'7'},{rel:4,q:'m7'},{rel:3,q:'m7'}]},
-  {name:'IVmaj7–V7–VIm7',            mode:'major', chords:[{rel:-1,q:'maj7'},{rel:1,q:'7'},{rel:3,q:'m7'}]}
+  {name:'IVmaj7–V7–VIm7',            mode:'major', chords:[{rel:-1,q:'maj7'},{rel:1,q:'7'},{rel:3,q:'m7'}]},
+  /* カノンのベースを1音ずつ下ろした形。分数コードがいちばん活きる型。 */
+  {name:'カノン下行 I–V/VII–VIm–VIm/V–IV–I/III–IIm–V', mode:'major',
+   chords:[{rel:0,q:''},{rel:1,q:'',bass:5},{rel:3,q:'m'},{rel:3,q:'m',bass:1},
+           {rel:-1,q:''},{rel:0,q:'',bass:4},{rel:2,q:'m'},{rel:1,q:''}]},
+  {name:'IV–V/IV–IIIm–VIm', mode:'major',
+   chords:[{rel:-1,q:''},{rel:1,q:'',bass:-1},{rel:4,q:'m'},{rel:3,q:'m'}]}
 ]},
 {tab:'4 中級', note:'レベル4：セカンダリードミナントと経過的なディミニッシュ。', items:[
   {name:'Imaj7–VI7–IIm7–V7',    mode:'major', chords:[{rel:0,q:'maj7'},{rel:3,q:'7'},{rel:2,q:'m7'},{rel:1,q:'7'}]},
@@ -346,7 +368,10 @@ const PRESETS=[
            {rel:5,q:'m7♭5'},{rel:4,q:'7'},{rel:3,q:'m7'}]},
   {name:'IIIm7–VI7–IIm7–V7–Imaj7', mode:'major', chords:[{rel:4,q:'m7'},{rel:3,q:'7'},{rel:2,q:'m7'},{rel:1,q:'7'},{rel:0,q:'maj7'}]},
   {name:'IVmaj7–♯IVdim7–Imaj7', mode:'major', chords:[{rel:-1,q:'maj7'},{rel:6,q:'dim7'},{rel:0,q:'maj7'}]},
-  {name:'Imaj7–VI7–IIm7–V7sus4',mode:'major', chords:[{rel:0,q:'maj7'},{rel:3,q:'7'},{rel:2,q:'m7'},{rel:1,q:'7sus4'}]}
+  {name:'Imaj7–VI7–IIm7–V7sus4',mode:'major', chords:[{rel:0,q:'maj7'},{rel:3,q:'7'},{rel:2,q:'m7'},{rel:1,q:'7sus4'}]},
+  /* 経過のディミニッシュから I の第2転回へ。ベースが F–F♯–G と半音で上がる。 */
+  {name:'IVmaj7–♯IVdim7–I/V', mode:'major',
+   chords:[{rel:-1,q:'maj7'},{rel:6,q:'dim7'},{rel:0,q:'',bass:1}]}
 ]},
 {tab:'5 上級', note:'レベル5：裏コードと借用和音。ルートの動きが半音になる。', items:[
   {name:'IIm7–♭II7–Imaj7',            mode:'major', chords:[{rel:2,q:'m7'},{rel:-5,q:'7'},{rel:0,q:'maj7'}]},
@@ -356,7 +381,10 @@ const PRESETS=[
   {name:'Imaj7–♭VImaj7–♭VIImaj7–Imaj7',mode:'major',chords:[{rel:0,q:'maj7'},{rel:-4,q:'maj7'},{rel:-2,q:'maj7'},{rel:0,q:'maj7'}]},
   {name:'Imaj7–♭III7–♭VImaj7',        mode:'major', chords:[{rel:0,q:'maj7'},{rel:-3,q:'7'},{rel:-4,q:'maj7'}]},
   {name:'IIIm7–♭IIIdim7–IIm7–V7',     mode:'major', chords:[{rel:4,q:'m7'},{rel:-3,q:'dim7'},{rel:2,q:'m7'},{rel:1,q:'7'}]},
-  {name:'IIm7–♭II7–Imaj7–♭VII7',      mode:'major', chords:[{rel:2,q:'m7'},{rel:-5,q:'7'},{rel:0,q:'maj7'},{rel:-2,q:'7'}]}
+  {name:'IIm7–♭II7–Imaj7–♭VII7',      mode:'major', chords:[{rel:2,q:'m7'},{rel:-5,q:'7'},{rel:0,q:'maj7'},{rel:-2,q:'7'}]},
+  /* 上は動かさず、ベースだけ半音で下ろす。C–B–B♭–A。 */
+  {name:'下行半音ベース I–I/VII–I/♭VII–IV/VI', mode:'major',
+   chords:[{rel:0,q:''},{rel:0,q:'',bass:5},{rel:0,q:'',bass:-2},{rel:-1,q:'',bass:3}]}
 ]},
 {tab:'短調', note:'度数は平行短調の I を基準にとります。', items:[
   {name:'IIm7♭5–V7–Im',        mode:'minor', chords:[{rel:2,q:'m7♭5'},{rel:1,q:'7'},{rel:0,q:'m'}]},
@@ -367,7 +395,10 @@ const PRESETS=[
   {name:'Im7–♭VImaj7–♭VIImaj7–Im7', mode:'minor', chords:[{rel:0,q:'m7'},{rel:-4,q:'maj7'},{rel:-2,q:'maj7'},{rel:0,q:'m7'}]},
   {name:'クリシェ Im–ImM7–Im7–Im6', mode:'minor', chords:[{rel:0,q:'m'},{rel:0,q:'mM7'},{rel:0,q:'m7'},{rel:0,q:'m6'}]},
   {name:'IVm7–♭VII7–♭IIImaj7', mode:'minor', chords:[{rel:-1,q:'m7'},{rel:-2,q:'7'},{rel:-3,q:'maj7'}]},
-  {name:'Im7–IVm7–♭VIImaj7',   mode:'minor', chords:[{rel:0,q:'m7'},{rel:-1,q:'m7'},{rel:-2,q:'maj7'}]}
+  {name:'Im7–IVm7–♭VIImaj7',   mode:'minor', chords:[{rel:0,q:'m7'},{rel:-1,q:'m7'},{rel:-2,q:'maj7'}]},
+  /* アンダルシアと同じ下行ベースを、上を動かさずに作る形。Am–Am/G–F–E7。 */
+  {name:'下行ベース Im–Im/♭VII–♭VI–V7', mode:'minor',
+   chords:[{rel:0,q:'m'},{rel:0,q:'m',bass:-2},{rel:-4,q:''},{rel:1,q:'7'}]}
 ]}
 ];
 const PATTERNS=[
@@ -472,7 +503,20 @@ function chordRoot(k,c){
   if(state.simplifyAcc&&Math.abs(Math.floor((n+1)/7))>=2) n=simplify(n);
   return noteName(n);
 }
-const chordSymbol=(k,c)=>chordRoot(k,c)+qLabel(c.q);
+/* ===== 分数コード =====
+   ベース音も rel と同じ「トニックからの五度圏上の距離」で持つ。半音数で持つと綴りが
+   壊れるが、これなら12調すべてで正しく出る（G♭調の IV/V は C♭/D♭）。
+   五度圏上で12離れると同じ音になるので（♯IVと♭V）、比較は差の mod 12 で見る。 */
+const sameDeg=(a,b)=>a!=null&&b!=null&&mod(a-b,12)===0;
+const hasBass=c=>c.bass!=null&&!sameDeg(c.bass,c.rel);
+function bassRoot(k,c){
+  let n=refFifth(k)+c.bass;
+  if(state.simplifyAcc&&Math.abs(Math.floor((n+1)/7))>=2) n=simplify(n);
+  return noteName(n);
+}
+const bassLabel=(k,c)=>hasBass(c)?'/'+bassRoot(k,c):'';
+const chordSymbol=(k,c)=>chordRoot(k,c)+qLabel(c.q)+bassLabel(k,c);
+const degSymbol=c=>degreeLabel(c.rel)+qLabel(c.q)+(hasBass(c)?'/'+degreeLabel(c.bass):'');
 
 /* ===== 幾何 ===== */
 const R_PATH=48, R_IN=54, R_MIN=84, R_MAJ=116, R_C0=121, RT=38, PAD=36;
@@ -494,16 +538,25 @@ function arrowAt(x0,y0,x1,y1,t,s){
   return `M${q(s,0)} L${q(-s*.8,s*.62)} L${q(-s*.8,-s*.62)} Z`;
 }
 
-/* ===== 区画内のコード名：ルートとクオリティを2段に積む =====
+/* ===== 区画内の文字：上から順に積む =====
    3時・9時方向では区画の水平方向の余地がリング厚（38px）しかなく、1行では
-   "C♯m" ですら収まらない。2段にすると最長のクオリティでも収まる。
-   行の高さは font-size の 0.70 倍（およそ cap height）として上下中央に揃える。 */
+   "C♯m" ですら収まらない。段に分けると最長のクオリティでも収まる。
+   行の高さは font-size の 0.70 倍（およそ cap height）として扱う。
+
+   度数・ルート・クオリティ・ベースが全部そろう4段だけは 38px に収まらない。
+   はみ出す分は外側（半径が大きくなる向き）へ逃がす。内側は次に弾くコードなので、
+   そちらを避ける。3時・9時では縦が接線方向で余裕があり、cos がちょうど 0 になって
+   ずれない、という具合に角度で自然に効く。 */
 const CAP=0.70;
-function stack(x,y,root,q,fr,fq,fill,weight){
-  const hr=fr*CAP, hq=q?fq*CAP:0, gap=q?fq*0.24:0, top=y-(hr+gap+hq)/2;
-  const w=weight?` font-weight="${weight}"`:'';
-  let o=`<text x="${f2(x)}" y="${f2(top+hr)}" text-anchor="middle" font-size="${fr}"${w} fill="${fill}">${root}</text>`;
-  if(q) o+=`<text x="${f2(x)}" y="${f2(top+hr+gap+hq)}" text-anchor="middle" font-size="${fq}"${w} fill="${fill}">${q}</text>`;
+function cellText(x,y,am,lines){
+  const g=lines.length>=4?0.18:0.24;
+  let H=0; for(let i=0;i<lines.length;i++) H+=lines[i].size*(CAP+(i?g:0));
+  let cy=y-H/2-Math.max(0,H-RT)/2*Math.cos(am*Math.PI/180), o='';
+  for(let i=0;i<lines.length;i++){
+    const L=lines[i]; cy+=L.size*(CAP+(i?g:0));
+    o+=`<text${L.cls?` class="${L.cls}"`:''} x="${f2(x)}" y="${f2(cy)}" text-anchor="middle" `+
+       `font-size="${L.size}" fill="${L.fill}">${L.t}</text>`;
+  }
   return o;
 }
 
@@ -548,15 +601,16 @@ function drawWheel(){
         ov+=`<path class="nextcell" d="${sector(c,c,r0,r1,a0,a1)}" fill="none" `+
             `stroke="${T.brass}" stroke-width="${(2.4*K).toFixed(2)}" stroke-linejoin="round" `+
             `stroke-dasharray="${(5*K).toFixed(1)} ${(3.5*K).toFixed(1)}"/>`;
-      /* 度数を出すと3段になる。リング厚38pxに対し内容は約30pxなので、上下の余白が
-         均等になる位置に置く。詰めすぎると隣のリングの文字とくっついて見える。 */
-      const root=chordRoot(kf,ch);
-      /* 「ダブル♯♭を簡略化」を切ると E♭♭ のような綴りが出る。これだけは2段にしても
+      const root=chordRoot(kf,ch), q=qLabel(ch.q), lines=[];
+      if(state.showDeg) lines.push({t:degreeLabel(ch.rel),size:9,cls:'mono',fill:T.deg});
+      /* 「ダブル♯♭を簡略化」を切ると E♭♭ のような綴りが出る。これだけは段に分けても
          41.1px あり 38px に収まらないので、その語だけ字を詰める。 */
-      s+=stack(tx,ty+(state.showDeg?4.7:0),root,qLabel(ch.q),
-               /♭♭|♯♯/.test(root)?14.2:15.5,10.5,T.text);
-      if(state.showDeg)
-        s+=`<text class="mono" x="${f2(tx)}" y="${f2(ty-9)}" text-anchor="middle" font-size="9" fill="${T.deg}">${degreeLabel(ch.rel)}</text>`;
+      lines.push({t:root,size:/♭♭|♯♯/.test(root)?14.2:15.5,fill:T.text});
+      if(q) lines.push({t:q,size:10.5,fill:T.text});
+      /* ベース行はクオリティ行より一段小さく。従属した情報に見えるほうが読みやすく、
+         4段になったときの高さも抑えられる。 */
+      if(hasBass(ch)) lines.push({t:'/'+bassRoot(kf,ch),size:9.5,fill:T.text});
+      s+=cellText(tx,ty,am,lines);
     }
 
     const hi=isCur?T.hiOut:isNext?T.hiNext:T.ring;
@@ -669,7 +723,7 @@ function drawPanel(){
   const chips=document.getElementById('chips');
   chips.innerHTML=state.chords.map((ch,i)=>
     `<div class="chip ${i===state.sel?'sel':''}" data-i="${i}">
-       <span class="deg">${degreeLabel(ch.rel)}${qLabel(ch.q)}</span>
+       <span class="deg">${degSymbol(ch)}</span>
        <span class="sym">${chordSymbol(cur,ch)}</span>
      </div>`+(i<state.chords.length-1?'<span class="arrowchip">→</span>':'')).join('');
   chips.querySelectorAll('.chip').forEach(el=>el.onclick=()=>{state.sel=+el.dataset.i;render();});
@@ -684,17 +738,36 @@ function drawPanel(){
   rootRow.style.display = state.inputMode==='name' ? '' : 'none';
   degRow.style.display  = state.inputMode==='degree' ? '' : 'none';
 
+  /* ルートを動かした結果ベースと同じ音になったら、分数コードではなくなるので落とす。
+     ボタンを無効にするだけでは、あとからルートを変えて一致させる経路が残る。 */
+  const setRel=rel=>{const c=state.chords[state.sel];
+    c.rel=rel; if(sameDeg(c.bass,rel)) c.bass=null; render();};
+
   rootRow.innerHTML=ROOTS.map(r=>`<button class="root-btn ${r===curRoot?'on':''}" data-r="${r}">${r}</button>`).join('');
-  rootRow.querySelectorAll('button').forEach(b=>b.onclick=()=>{
-    state.chords[state.sel].rel=nameToFifth(b.dataset.r)-refFifth(cur);render();});
+  rootRow.querySelectorAll('button').forEach(b=>b.onclick=()=>
+    setRel(nameToFifth(b.dataset.r)-refFifth(cur)));
 
   degRow.innerHTML=DEGREES.map(d=>`<button class="root-btn ${d.rel===c0.rel?'on':''}" data-rel="${d.rel}">${d.name}</button>`).join('');
-  degRow.querySelectorAll('button').forEach(b=>b.onclick=()=>{
-    state.chords[state.sel].rel=+b.dataset.rel;render();});
+  degRow.querySelectorAll('button').forEach(b=>b.onclick=()=>setRel(+b.dataset.rel));
+
+  /* ベース。ルートと同じ音になるボタンは無効にする（♯IVと♭V、C♯とD♭のように
+     綴りが違って同じ音になる組があるので、五度圏の値の差を mod 12 で見る）。 */
+  const bassRow=document.getElementById('bassRow');
+  const setBass=rel=>{state.chords[state.sel].bass=rel;render();};
+  const btn=(label,rel,on)=>{const dead=rel!=null&&sameDeg(rel,c0.rel);
+    return `<button class="root-btn ${on?'on':''} ${dead?'dim':''}" data-rel="${rel==null?'':rel}"`+
+           `${dead?' disabled':''}>${label}</button>`;};
+  bassRow.innerHTML=btn('なし',null,!hasBass(c0))+
+    (state.inputMode==='name'
+      ? ROOTS.map(r=>{const rel=nameToFifth(r)-refFifth(cur);
+          return btn(r,rel,hasBass(c0)&&noteName(refFifth(cur)+c0.bass)===r);}).join('')
+      : DEGREES.map(d=>btn(d.name,d.rel,hasBass(c0)&&d.rel===c0.bass)).join(''));
+  bassRow.querySelectorAll('button').forEach(b=>b.onclick=()=>
+    setBass(b.dataset.rel===''?null:+b.dataset.rel));
 
   document.getElementById('progLine').innerHTML=
     `<span class="lab">degrees</span><span class="val">`+
-    state.chords.map(ch=>degreeLabel(ch.rel)+qLabel(ch.q)).join('<span class="sep">–</span>')+
+    state.chords.map(degSymbol).join('<span class="sep">–</span>')+
     `</span><span class="note">${state.mode==='minor'?'平行短調の I を基準':'長調の I を基準'}</span>`;
 
   const qualRow=document.getElementById('qualRow');
@@ -708,15 +781,17 @@ function drawPanel(){
   const grp=PRESETS[state.presetTab];
   document.getElementById('presetNote').textContent=grp.note;
   const same=p=>p.mode===state.mode&&p.chords.length===state.chords.length&&
-    p.chords.every((c,i)=>c.rel===state.chords[i].rel&&c.q===state.chords[i].q);
+    p.chords.every((c,i)=>c.rel===state.chords[i].rel&&c.q===state.chords[i].q&&
+      (c.bass??null)===(state.chords[i].bass??null));
   const pr=document.getElementById('presetRow');
   pr.innerHTML=grp.items.map((p,i)=>
-    `<button class="pat-btn ${same(p)?'on':''}" data-p="${i}" title="${p.chords.map(c=>degreeLabel(c.rel)+qLabel(c.q)).join(' - ')}">${p.name}</button>`).join('');
+    `<button class="pat-btn ${same(p)?'on':''}" data-p="${i}" title="${p.chords.map(degSymbol).join(' - ')}">${p.name}</button>`).join('');
   pr.querySelectorAll('button').forEach(b=>b.onclick=()=>{
     const p=grp.items[+b.dataset.p];state.mode=p.mode;state.chords=p.chords.map(x=>({...x}));
     state.sel=state.chords.length-1;render();});
 
   document.documentElement.dataset.theme=state.theme;
+  document.getElementById('themeColor').content=state.theme==='light'?'#EFE9DD':'#14110F';
   document.querySelectorAll('#themeSeg button').forEach(b=>{
     b.classList.toggle('on',b.dataset.theme===state.theme);
     b.onclick=()=>{state.theme=b.dataset.theme;render();};});
@@ -844,7 +919,7 @@ document.getElementById('prevBtn').onclick=()=>step(-1);
 document.getElementById('resetBtn').onclick=()=>{state.step=0;render();};
 document.getElementById('coverBtn').onclick=()=>{state.coverAll=!state.coverAll;state.step=0;buildSequence();render();};
 document.getElementById('addBtn').onclick=()=>{const c=state.chords[state.sel];
-  state.chords.splice(state.sel+1,0,{rel:c.rel,q:c.q});state.sel++;render();};
+  state.chords.splice(state.sel+1,0,{...c});state.sel++;render();};
 document.getElementById('delBtn').onclick=()=>{if(state.chords.length<=1)return;
   state.chords.splice(state.sel,1);state.sel=Math.min(state.sel,state.chords.length-1);render();};
 document.getElementById('leftBtn').onclick=()=>{if(state.sel===0)return;
