@@ -444,7 +444,7 @@ const state={
   theme:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark',
   chords:[{rel:-1,q:''},{rel:1,q:''},{rel:0,q:''}], sel:2, inputMode:'name',
   bpm:96, beatsPerChord:4, countIn:4, playing:false, playChord:null, countdown:0, presetTab:0,
-  tick:0, beatLevel:0, beatIn:-1,   /* メトロノームの向き・強拍の色・コード内の何拍目か */
+  beatIn:-1,              /* コード内の何拍目か（メトロノームの点） */
   seq:[], shifts:new Set(), closed:true
 };
 
@@ -607,7 +607,7 @@ function metronome(c,W,K,T){
   const px=c+0.74*W, py=c+0.84*W;        /* 支点。円の外側の余白に置く */
   const L=52*K;
   metroPivot={x:px,y:py};
-  const on=state.playing, lv=on?(state.beatLevel|0):0;
+  const on=state.playing;
   if(!on) state.beatIn=-1;
   /* 拍の強弱は下の点の並びで分かるので、錘は再生中つねに明るくしておく
      （拍ごとに灰色へ戻ると、動いているのに死んで見える） */
@@ -910,14 +910,12 @@ function schedule(){
   if(nextTime < actx.currentTime) nextTime=actx.currentTime+0.06;
   while(nextTime < actx.currentTime + LOOKAHEAD){
     if(beat<0){
-      const lv=beat===-state.countIn?2:0;
-      click(nextTime, lv);
-      uiQ.push({t:nextTime, count:-beat, lv, tick:beat, bi:-1});
+      click(nextTime, beat===-state.countIn?2:0);
+      uiQ.push({t:nextTime, count:-beat, tick:beat, bi:-1});
     }else{
       const idx=mod(beat,total), ci=Math.floor(idx/per);
-      const lv=idx===0?2:(idx%per===0?1:0);
-      click(nextTime, lv);
-      uiQ.push({t:nextTime, ci, adv:(idx===0&&beat>0), lv, tick:beat, bi:idx%per});
+      click(nextTime, idx===0?2:(idx%per===0?1:0));
+      uiQ.push({t:nextTime, ci, adv:(idx===0&&beat>0), tick:beat, bi:idx%per});
     }
     beat++; nextTime+=spb;
   }
@@ -933,7 +931,7 @@ function uiLoop(){
   const lat=outLat();
   while(uiQ.length && uiQ[0].t+lat <= actx.currentTime){
     const e=uiQ.shift();
-    state.tick=e.tick; state.beatLevel=e.lv; state.beatIn=e.bi;
+    state.beatIn=e.bi;
     metroBeatT=e.t; metroDir=mod(e.tick|0,2)?-1:1; metroStarted=true; metroBeatN++;
     if(e.count){ state.countdown=e.count; state.playChord=null; }
     else{
