@@ -444,6 +444,7 @@ const state={
   theme:(window.matchMedia&&window.matchMedia('(prefers-color-scheme: light)').matches)?'light':'dark',
   chords:[{rel:-1,q:''},{rel:1,q:''},{rel:0,q:''}], sel:2, inputMode:'name',
   bpm:96, beatsPerChord:4, countIn:4, playing:false, playChord:null, countdown:0, presetTab:0,
+  tick:0, beatLevel:0, beatIn:-1,   /* メトロノームの向き・強拍の色・コード内の何拍目か */
   seq:[], shifts:new Set(), closed:true
 };
 
@@ -560,6 +561,87 @@ function cellText(x,y,am,lines){
   return o;
 }
 
+/* ===== メトロノーム =====
+   クリック音は内蔵スピーカーだと聞き取りにくい。目でも拍が取れるように、
+   ホイールの右下の余白（円の外）で振り子を振る。
+   ★ 角度はCSSアニメーションではなく音の時計から毎フレーム計算する。ホイールは拍以外の
+   理由でも組み直されるので、アニメーションだと描き直しのたびに頭から始まって跳ね戻る。 */
+/* 振り子の角度。片道が1拍。両端で速度が0になるので実物の振り子のように見える。
+   拍ごとに向き(dir)が入れ替わり、前の拍の終わりと次の拍の始まりの角度が一致する。 */
+const METRO_A=27;
+/* クリック音の瞬間に強く、拍のあいだに消える。1拍ごとに必ず目に入るようにする
+   （1コード1拍だと点が1個しかなく、塗りつぶしだけでは拍が分からない）。 */
+const metroPulse=p=>Math.max(0,1-Math.max(0,p)*3.5);
+const metroAngle=(p,dir,first)=>{
+  const q=Math.max(0,Math.min(1,p));
+  /* 最初の1拍だけは真上から片側へ。いきなり端に飛ばないようにする。
+     終わりの角度は通常の式と同じなので、2拍目以降とつながる。 */
+  return first ? dir*METRO_A*Math.sin(Math.PI*q/2)
+               : -dir*METRO_A*Math.cos(Math.PI*q);
+};
+let metroPivot=null, metroBeatT=0, metroDir=1, metroStarted=false, metroBeatN=0;
+
+/* 毎フレーム、音の時計から角度を引き直す。描き直しとは独立しているので、
+   コードを弾いて再描画が入っても振り子は跳ねない。 */
+function metroTick(){
+  const g=document.getElementById('metroArm');
+  if(!g||!metroPivot) return;
+  let a=0, e=0;
+  if(state.playing&&actx&&metroStarted){
+    const spb=60/state.bpm;
+    const p=(actx.currentTime-outLat()-metroBeatT)/spb;
+    a=metroAngle(p,metroDir,metroBeatN<=1);
+    e=metroPulse(p);
+  }
+  g.setAttribute('transform',`rotate(${a.toFixed(2)} ${f2(metroPivot.x)} ${f2(metroPivot.y)})`);
+  const nd=document.getElementById('metroNow');
+  if(nd) nd.setAttribute('r',(+nd.dataset.r*(1+0.45*e)).toFixed(2));
+  const rg=document.getElementById('metroPulse');
+  if(rg){
+    rg.setAttribute('r',(+rg.dataset.r*(1+1.9*(1-e))).toFixed(2));
+    rg.setAttribute('opacity',(e*0.8).toFixed(3));
+  }
+}
+
+function metronome(c,W,K,T){
+  const px=c+0.74*W, py=c+0.84*W;        /* 支点。円の外側の余白に置く */
+  const L=52*K;
+  metroPivot={x:px,y:py};
+  const on=state.playing, lv=on?(state.beatLevel|0):0;
+  if(!on) state.beatIn=-1;
+  /* 拍の強弱は下の点の並びで分かるので、錘は再生中つねに明るくしておく
+     （拍ごとに灰色へ戻ると、動いているのに死んで見える） */
+  const bob=on?T.brass:T.node;
+  const rod=on?T.brass:T.node;
+  const base=`<path d="M${f2(px-17*K)},${f2(py)} L${f2(px+17*K)},${f2(py)} `+
+             `L${f2(px+10*K)},${f2(py-11*K)} L${f2(px-10*K)},${f2(py-11*K)} Z" `+
+             `fill="${T.center}" stroke="${on?T.brass:T.div}" stroke-width="${(1.2*K).toFixed(2)}"/>`;
+  const arm=`<g id="metroArm" class="metroArm">`+
+            `<line x1="${f2(px)}" y1="${f2(py)}" x2="${f2(px)}" y2="${f2(py-L)}" `+
+            `stroke="${rod}" stroke-width="${(2.4*K).toFixed(2)}" stroke-linecap="round"/>`+
+            `<rect x="${f2(px-6*K)}" y="${f2(py-L*0.62)}" width="${f2(12*K)}" height="${f2(8*K)}" `+
+            `rx="${(1.5*K).toFixed(2)}" fill="${bob}"/></g>`;
+  const per=state.beatsPerChord, gap=13*K, dy=py+13*K;
+  let dot='';
+  for(let i=0;i<per;i++){
+    const cx=px+(i-(per-1)/2)*gap;
+    const on_=on&&state.beatIn>=i;          /* いまの拍までを塗る */
+    const cur=on&&state.beatIn===i;         /* いま鳴った拍。ここが脈打つ */
+    const r0=(on_?4:2.6)*K;
+    if(cur) dot+=`<circle id="metroPulse" cx="${f2(cx)}" cy="${f2(dy)}" r="${r0.toFixed(2)}" `+
+                 `data-r="${r0.toFixed(2)}" fill="none" stroke="${T.brass}" `+
+                 `stroke-width="${(1.6*K).toFixed(2)}" opacity="0"/>`;
+    dot+=`<circle class="metroBeat${on_?' on':''}"${cur?' id="metroNow"':''} data-b="${i}" `+
+         `data-r="${r0.toFixed(2)}" cx="${f2(cx)}" cy="${f2(dy)}" r="${r0.toFixed(2)}" `+
+         `fill="${on_?T.brass:'none'}" stroke="${on_?'none':T.node}" `+
+         `stroke-width="${(1.2*K).toFixed(2)}"/>`;
+  }
+  const cd=on&&state.countdown
+    ? `<text class="mono" x="${f2(px)}" y="${f2(py-L-6*K)}" text-anchor="middle" `+
+      `font-size="${(15*K).toFixed(1)}" fill="${T.brass}">${state.countdown}</text>` : '';
+  return `<g pointer-events="none">${base}${arm}${dot}${cd}</g>`;
+}
+
 /* ===== ホイール描画 ===== */
 function drawWheel(){
   const n=state.chords.length, outer=R_C0+n*RT;
@@ -658,8 +740,10 @@ function drawWheel(){
       s+=`<circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="${on?4.2:2.4}" fill="${on?T.brass:nx?T.center:T.node}" ${nx&&!on?`stroke="${T.brass}" stroke-width="1.4"`:''}/>`;
     });
   }
+  s+=metronome(c,W,K,T);
   s+=`</svg>`;
   document.getElementById('wheel').innerHTML=s;
+  metroTick();
 
   document.querySelectorAll('svg.wheel .hit').forEach(el=>{
     const go=()=>{state.startFifth=+el.dataset.key;state.step=0;buildSequence();render();};
@@ -826,12 +910,14 @@ function schedule(){
   if(nextTime < actx.currentTime) nextTime=actx.currentTime+0.06;
   while(nextTime < actx.currentTime + LOOKAHEAD){
     if(beat<0){
-      click(nextTime, beat===-state.countIn?2:0);
-      uiQ.push({t:nextTime, count:-beat});
+      const lv=beat===-state.countIn?2:0;
+      click(nextTime, lv);
+      uiQ.push({t:nextTime, count:-beat, lv, tick:beat, bi:-1});
     }else{
       const idx=mod(beat,total), ci=Math.floor(idx/per);
-      click(nextTime, idx===0?2:(idx%per===0?1:0));
-      uiQ.push({t:nextTime, ci, adv:(idx===0&&beat>0)});
+      const lv=idx===0?2:(idx%per===0?1:0);
+      click(nextTime, lv);
+      uiQ.push({t:nextTime, ci, adv:(idx===0&&beat>0), lv, tick:beat, bi:idx%per});
     }
     beat++; nextTime+=spb;
   }
@@ -847,6 +933,8 @@ function uiLoop(){
   const lat=outLat();
   while(uiQ.length && uiQ[0].t+lat <= actx.currentTime){
     const e=uiQ.shift();
+    state.tick=e.tick; state.beatLevel=e.lv; state.beatIn=e.bi;
+    metroBeatT=e.t; metroDir=mod(e.tick|0,2)?-1:1; metroStarted=true; metroBeatN++;
     if(e.count){ state.countdown=e.count; state.playChord=null; }
     else{
       if(e.adv) state.step=mod(state.step+1,state.seq.length);
@@ -855,6 +943,7 @@ function uiLoop(){
     dirty=true;
   }
   if(dirty) render();
+  metroTick();
   requestAnimationFrame(uiLoop);
 }
 /* Safari(WebKit)向けの注意点が3つある。
@@ -875,7 +964,7 @@ let playGen=0;
 function play(){
   ensureCtx();
   const gen=++playGen;
-  state.playing=true; beat=-state.countIn; uiQ=[];
+  state.playing=true; beat=-state.countIn; uiQ=[]; metroStarted=false; metroBeatN=0;
   state.countdown=state.countIn; state.playChord=state.countIn?null:0;
   render();
   let started=false;
@@ -898,7 +987,7 @@ function play(){
 }
 function stop(){
   playGen++;
-  state.playing=false; clearInterval(schedId); schedId=null; uiQ=[];
+  state.playing=false; metroStarted=false; state.beatIn=-1; clearInterval(schedId); schedId=null; uiQ=[];
   state.playChord=null; state.countdown=0; render();
 }
 const toggledPlay=()=>state.playing?stop():play();
