@@ -4,6 +4,18 @@
 
 **→ https://ku-ron.github.io/chord_practice/**
 
+> ### 後継版があります
+>
+> **[コード弾き練習 MIDI Ver.](https://github.com/ku-ron/chord_practice_midi)（[公開版](https://ku-ron.github.io/chord_practice_midi/)）**
+>
+> 電子ピアノをつないで、**実際に弾いた音の正誤まで判定する**版です。このホイール・プリセット・進行の編集・調の巡り方・テンポ再生はそのまま引き継いだうえで、MIDI入力を足してあります。
+>
+> **電子ピアノが無くても、そのままホイールとして使えます。** MIDIに非対応の環境ではその旨が表示されるだけで、他の機能は動きます。**基本的には後継版のほうをお使いください。**
+>
+> ひとつだけ注意点があります。**Safari は Web MIDI API に非対応**（macOS版・iOS/iPadOS版とも）なので、iPad・iPhoneで判定機能まで使うには [MIDIWeb Browser](https://apps.apple.com/us/app/midiweb-browser/id6757226617)（無料）で開く必要があります。Mac・Windowsなら Chrome / Edge / Firefox でそのまま動きます。
+>
+> **iPadのSafariでURLを開くだけで済ませたい**、という場合はこちらのホイール版が向いています。
+
 ![](./docs/wheel_ss1.png)
 
 ![](./docs/wheel_ss2.png)
